@@ -793,26 +793,37 @@ static VALUE async_query(VALUE obj, VALUE sql)
     Vio *vio;
 
     vio = m->net.vio;
-
+ 
+    rb_warn("Send query: %s", StringValuePtr(sql) );
     send_query( obj, sql);
 
-    fd_set read, write, except;
+    fd_set read;
+    
     int my_fd = vio_fd(vio);
-
+    
+    rb_warn("File descriptor: %d", INT2NUM( my_fd ));
     FD_ZERO(&read);
-    FD_ZERO(&write);
-    FD_ZERO(&except);
     FD_SET(my_fd, &read);
-    FD_SET(my_fd, &write);
-    FD_SET(my_fd, &except);
 
     struct timeval tv = {0, 0};
 
     tv.tv_sec = 0;
-    tv.tv_usec = 99900;
+    tv.tv_usec = 90000;
 
-    rb_thread_select(0, &read, &write, &except, &tv);
+    int ret;
+    ret = rb_thread_select(my_fd + 1, &read, NULL, NULL, &tv);
+    rb_warn( "Return is %d", INT2NUM(ret) );
 
+    if (ret < 0) {
+      rb_raise(rb_eRuntimeError, "select(): %s", strerror(errno));
+    }
+
+    if (ret == 0){
+      rb_warn("Timeout for query: %s", StringValuePtr(sql) ); 
+    }
+
+    rb_warn("Results for query: %s", StringValuePtr(sql) ); 
+     
     return get_result( obj );
 }
 

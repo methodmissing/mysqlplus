@@ -15,11 +15,11 @@ puts 'connection pool ready'
 $threads = []
 $count.times do |i|
   $threads << Thread.new do
-
-    puts "sending query on connection #{i}"
-
-    $connections[i].async_query("select sleep(3)").each{ |r|
-      puts "connection #{i} done"
+    sleep_timeout = rand()
+    puts "sending query on connection #{i} (#{sleep_timeout})"
+    
+    $connections[i].async_query("select sleep(#{sleep_timeout})").each{ |r|
+      puts "connection #{i} (#{sleep_timeout}) done"
     }
 
   end
