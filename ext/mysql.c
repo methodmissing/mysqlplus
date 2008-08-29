@@ -786,16 +786,35 @@ static VALUE get_result(VALUE obj)
 }
 
 /* async_query */
-/*
-comment it out until I figure out how it works
 static VALUE async_query(VALUE obj, VALUE sql)
 {
-  send_query(obj,sql);
-	rb_io_wait_readable(socket(obj));
-  return get_result(obj);
-}
-*/
+    MYSQL* m = GetHandler(obj);
 
+    Vio *vio;
+
+    vio = m->net.vio;
+
+    send_query( obj, sql);
+
+    fd_set read, write, except;
+    int my_fd = vio_fd(vio);
+
+    FD_ZERO(&read);
+    FD_ZERO(&write);
+    FD_ZERO(&except);
+    FD_SET(my_fd, &read);
+    FD_SET(my_fd, &write);
+    FD_SET(my_fd, &except);
+
+    struct timeval tv = {0, 0};
+
+    tv.tv_sec = 0;
+    tv.tv_usec = 99900;
+
+    rb_thread_select(0, &read, &write, &except, &tv);
+
+    return get_result( obj );
+}
 
 #if MYSQL_VERSION_ID >= 40100
 /*	server_version()	*/
@@ -2000,7 +2019,7 @@ void Init_mysql(void)
 #endif
     rb_define_method(cMysql, "query", query, 1);
     rb_define_method(cMysql, "real_query", query, 1);
-    /*rb_define_method(cMysql, "async_query", async_query, 1);*/
+    rb_define_method(cMysql, "async_query", async_query, 1);
     rb_define_method(cMysql, "send_query", send_query, 1);
     rb_define_method(cMysql, "get_result", get_result, 0);
     rb_define_method(cMysql, "socket", socket, 0);

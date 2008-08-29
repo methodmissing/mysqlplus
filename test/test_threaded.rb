@@ -1,3 +1,4 @@
+require 'rubygems'
 require 'mysqlplus'
 
 $count = 10
