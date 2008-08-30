@@ -785,45 +785,28 @@ static VALUE get_result(VALUE obj)
     return store_result(obj);
 }
 
-/* async_query */
-static VALUE async_query(VALUE obj, VALUE sql)
+/* async_query(sql, timeout=nil) */
+static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 {
-    MYSQL* m = GetHandler(obj);
+    MYSQL* m = GetHandler(obj);   
 
-    Vio *vio;
+    VALUE sql, timeout, args[4];   
 
-    vio = m->net.vio;
- 
-    rb_warn("Send query: %s", StringValuePtr(sql) );
-    send_query( obj, sql);
+    rb_scan_args(argc, argv, "11", &sql, &timeout);
 
-    fd_set read;
-    
-    int my_fd = vio_fd(vio);
-    
-    rb_warn("File descriptor: %d", INT2NUM( my_fd ));
-    FD_ZERO(&read);
-    FD_SET(my_fd, &read);
+    send_query( obj, sql );
 
-    struct timeval tv = {0, 0};
+    VALUE io = rb_const_get(rb_cObject, rb_intern("IO") );
+    VALUE io_instance = rb_funcall( io, rb_intern("new"), 1, socket(obj) );
+    args[0] = rb_ary_new3(1, io_instance );
+    args[1] = Qnil;
+    args[2] = Qnil;
+    args[3] = timeout;
 
-    tv.tv_sec = 0;
-    tv.tv_usec = 90000;
+    if ( rb_funcall2( io, rb_intern( "select" ), 4,  (VALUE *)args ) == Qnil ){
+      mysql_raise(m);
+    } 
 
-    int ret;
-    ret = rb_thread_select(my_fd + 1, &read, NULL, NULL, &tv);
-    rb_warn( "Return is %d", INT2NUM(ret) );
-
-    if (ret < 0) {
-      rb_raise(rb_eRuntimeError, "select(): %s", strerror(errno));
-    }
-
-    if (ret == 0){
-      rb_warn("Timeout for query: %s", StringValuePtr(sql) ); 
-    }
-
-    rb_warn("Results for query: %s", StringValuePtr(sql) ); 
-     
     return get_result( obj );
 }
 
@@ -2030,7 +2013,7 @@ void Init_mysql(void)
 #endif
     rb_define_method(cMysql, "query", query, 1);
     rb_define_method(cMysql, "real_query", query, 1);
-    rb_define_method(cMysql, "async_query", async_query, 1);
+    rb_define_method(cMysql, "async_query", async_query, -1);
     rb_define_method(cMysql, "send_query", send_query, 1);
     rb_define_method(cMysql, "get_result", get_result, 0);
     rb_define_method(cMysql, "socket", socket, 0);
