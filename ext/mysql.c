@@ -794,6 +794,10 @@ static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 
     rb_scan_args(argc, argv, "11", &sql, &timeout);
 
+    if ( NIL_P( timeout ) ){
+      timeout = INT2NUM(m->net.read_timeout);
+    }
+
     send_query( obj, sql );
 
     VALUE io = rb_const_get(rb_cObject, rb_intern("IO") );
