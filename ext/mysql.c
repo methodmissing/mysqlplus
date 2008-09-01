@@ -54,6 +54,8 @@ VALUE cMysqlRowOffset;
 VALUE cMysqlTime;
 VALUE eMysql;
 
+static ID id_select, id_io, id_io_klass, id_io_socket, id_new;
+
 static int store_result_count = 0;
 
 struct mysql {
@@ -422,7 +424,7 @@ static VALUE real_escape_string(VALUE obj, VALUE str)
 /*	initialize()	*/
 static VALUE initialize(int argc, VALUE* argv, VALUE obj)
 {
-    rb_ivar_set(obj, rb_intern("@io_socket"), rb_hash_new());
+    rb_ivar_set(obj, id_io_socket, rb_hash_new());
     return obj;
 }
 
@@ -865,14 +867,13 @@ static VALUE io_socket( VALUE obj )
 {
    VALUE io, io_instance, fd_lookup;
 
-   fd_lookup = rb_ivar_get(obj, rb_intern("@io_socket") );
+   fd_lookup = rb_ivar_get(obj, id_io_socket );
    io_instance = rb_hash_aref( fd_lookup, socket(obj) );
 
    if ( io_instance != Qnil ){
      return io_instance;  
    }else{
-     io = rb_const_get(rb_cObject, rb_intern("IO") );
-	 io_instance = rb_funcall( io, rb_intern("new"), 1, socket(obj) );
+	 io_instance = rb_funcall( id_io_klass, id_new, 1, socket(obj) );
      return rb_hash_aset(fd_lookup, socket(obj), io_instance);
    }
 }
@@ -892,13 +893,12 @@ static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 
     send_query( obj, sql );
 
-    io = rb_const_get(rb_cObject, rb_intern("IO") );
     args[0] = rb_ary_new3(1, io_socket(obj) );
     args[1] = Qnil;
     args[2] = Qnil;
     args[3] = timeout;
 
-    if ( rb_funcall2( io, rb_intern( "select" ), 4,  (VALUE *)args ) == Qnil ){
+    if ( rb_funcall2( id_io_klass, id_select, 4,  (VALUE *)args ) == Qnil ){
       mysql_raise(m);
     } 
 
@@ -2030,6 +2030,12 @@ void Init_mysql(void)
     cMysqlTime = rb_define_class_under(cMysql, "Time", rb_cObject);
 #endif
     eMysql = rb_define_class_under(cMysql, "Error", rb_eStandardError);
+ 
+    id_select = rb_intern("select");
+    id_io = rb_intern("IO");
+    id_io_klass = rb_const_get(rb_cObject, id_io );
+    id_io_socket = rb_intern("@io_socket");
+    id_new = rb_intern("new");
 
     rb_define_global_const("MysqlRes", cMysqlRes);
     rb_define_global_const("MysqlField", cMysqlField);
