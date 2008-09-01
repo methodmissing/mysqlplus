@@ -878,21 +878,27 @@ static VALUE io_socket( VALUE obj )
    }
 }
 
-/* async_query(sql, timeout=nil) */
-static VALUE async_query(int argc, VALUE* argv, VALUE obj)
+
+/* schedule_without_timeout(sql) */
+static VALUE schedule_without_timeout( VALUE obj )
 {
-    MYSQL* m = GetHandler(obj);   
+    MYSQL* m = GetHandler(obj);  
 
-    VALUE sql, io, timeout, args[4];   
+    fd_set read;
 
-    rb_scan_args(argc, argv, "11", &sql, &timeout);
+    FD_ZERO(&read);
+	FD_SET(m->net.fd, &read);
 
-    if ( NIL_P( timeout ) ){
-      timeout = INT2NUM(m->net.read_timeout);
-    }
+    rb_thread_select(m->net.fd, &read, NULL, NULL, NULL );
+}
 
-    send_query( obj, sql );
-
+/* schedule_with_timeout(sql, timeout) */
+static VALUE schedule_with_timeout( VALUE obj, VALUE timeout )
+{
+    MYSQL* m = GetHandler(obj);  
+   
+    VALUE args[4];
+ 
     args[0] = rb_ary_new3(1, io_socket(obj) );
     args[1] = Qnil;
     args[2] = Qnil;
@@ -900,7 +906,23 @@ static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 
     if ( rb_funcall2( id_io_klass, id_select, 4,  (VALUE *)args ) == Qnil ){
       mysql_raise(m);
-    } 
+    }
+}
+
+/* async_query(sql, timeout=nil) */
+static VALUE async_query(int argc, VALUE* argv, VALUE obj)
+{
+	VALUE sql, timeout;   
+
+    rb_scan_args(argc, argv, "11", &sql, &timeout);
+
+    send_query( obj, sql );
+
+    if NIL_P( timeout ){
+      schedule_without_timeout( obj );
+    }else{
+      schedule_with_timeout( obj, timeout );
+    }
 
     return get_result( obj );
 }
