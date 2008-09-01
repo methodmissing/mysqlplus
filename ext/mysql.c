@@ -859,12 +859,27 @@ static VALUE get_result(VALUE obj)
     return store_result(obj);
 }
 
+/* io_socket */
+static VALUE io_socket( VALUE obj )
+{
+   VALUE io, io_instance;
+
+   if ( io_instance = rb_ivar_get(obj, rb_intern("@io_socket")) != Qnil ){
+     return io_instance;  
+   }else{
+     io = rb_const_get(rb_cObject, rb_intern("IO") );
+	 io_instance = rb_funcall( io, rb_intern("new"), 1, socket(obj) );
+     rb_ivar_set( obj, rb_intern("@io_socket"), io_instance );
+     return io_instance;
+   }
+}
+
 /* async_query(sql, timeout=nil) */
 static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 {
     MYSQL* m = GetHandler(obj);   
 
-    VALUE sql, timeout, args[4];   
+    VALUE sql, io, timeout, args[4];   
 
     rb_scan_args(argc, argv, "11", &sql, &timeout);
 
@@ -874,9 +889,8 @@ static VALUE async_query(int argc, VALUE* argv, VALUE obj)
 
     send_query( obj, sql );
 
-    VALUE io = rb_const_get(rb_cObject, rb_intern("IO") );
-    VALUE io_instance = rb_funcall( io, rb_intern("new"), 1, socket(obj) );
-    args[0] = rb_ary_new3(1, io_instance );
+    io = rb_const_get(rb_cObject, rb_intern("IO") );
+    args[0] = rb_ary_new3(1, io_socket(obj) );
     args[1] = Qnil;
     args[2] = Qnil;
     args[3] = timeout;
@@ -2091,16 +2105,17 @@ void Init_mysql(void)
 #endif
     rb_define_method(cMysql, "query", query, 1);
     rb_define_method(cMysql, "real_query", query, 1);
+    rb_define_method(cMysql, "async_query", async_query, -1);
+    rb_define_method(cMysql, "send_query", send_query, 1);
+    rb_define_method(cMysql, "get_result", get_result, 0);
+    rb_define_method(cMysql, "socket", socket, 0);
+    rb_define_method(cMysql, "io_socket", io_socket, 0);
     rb_define_method(cMysql, "socket_nonblocking", socket_nonblocking, 0);
     rb_define_method(cMysql, "socket_blocking", socket_blocking, 0);
     rb_define_method(cMysql, "socket_blocking?", blocking, 0);
     rb_define_method(cMysql, "socket_ready?", socket_ready, -1);
     rb_define_method(cMysql, "socket_interrupted?", socket_interrupted, 0);
     rb_define_method(cMysql, "socket_retry?", socket_retry, 0);
-    rb_define_method(cMysql, "async_query", async_query, -1);
-    rb_define_method(cMysql, "send_query", send_query, 1);
-    rb_define_method(cMysql, "get_result", get_result, 0);
-    rb_define_method(cMysql, "socket", socket, 0);
     rb_define_method(cMysql, "refresh", refresh, 1);
     rb_define_method(cMysql, "reload", reload, 0);
     rb_define_method(cMysql, "select_db", select_db, 1);
