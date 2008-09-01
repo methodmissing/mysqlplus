@@ -422,6 +422,7 @@ static VALUE real_escape_string(VALUE obj, VALUE str)
 /*	initialize()	*/
 static VALUE initialize(int argc, VALUE* argv, VALUE obj)
 {
+    rb_ivar_set(obj, rb_intern("@io_socket"), rb_hash_new());
     return obj;
 }
 
@@ -862,15 +863,17 @@ static VALUE get_result(VALUE obj)
 /* io_socket */
 static VALUE io_socket( VALUE obj )
 {
-   VALUE io, io_instance;
+   VALUE io, io_instance, fd_lookup;
 
-   if ( io_instance = rb_ivar_get(obj, rb_intern("@io_socket")) != Qnil ){
+   fd_lookup = rb_ivar_get(obj, rb_intern("@io_socket") );
+   io_instance = rb_hash_aref( fd_lookup, socket(obj) );
+
+   if ( io_instance != Qnil ){
      return io_instance;  
    }else{
      io = rb_const_get(rb_cObject, rb_intern("IO") );
 	 io_instance = rb_funcall( io, rb_intern("new"), 1, socket(obj) );
-     rb_ivar_set( obj, rb_intern("@io_socket"), io_instance );
-     return io_instance;
+     return rb_hash_aset(fd_lookup, socket(obj), io_instance);
    }
 }
 
