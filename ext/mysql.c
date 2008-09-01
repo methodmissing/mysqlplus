@@ -753,7 +753,80 @@ static VALUE query(VALUE obj, VALUE sql)
 static VALUE socket(VALUE obj)
 {
     MYSQL* m = GetHandler(obj);
-    return INT2NUM(vio_fd(m->net.vio));
+    return INT2NUM(m->net.fd);
+}
+
+/* socket_nonblocking*/
+static VALUE socket_nonblocking( VALUE obj )
+{
+   MYSQL* m = GetHandler(obj);
+   my_bool was_blocking;
+   vio_blocking(m->net.vio, 0, &was_blocking);   
+   return ( was_blocking ? Qtrue : Qfalse );
+}
+
+/* socket_blocking*/
+static VALUE socket_blocking( VALUE obj )
+{
+   MYSQL* m = GetHandler(obj);
+   my_bool was_blocking;
+   vio_blocking(m->net.vio, 1, &was_blocking);   
+   return ( was_blocking ? Qfalse : Qtrue );
+}
+
+/* blocking */
+static VALUE blocking( VALUE obj )
+{
+    MYSQL* m = GetHandler(obj);
+    if (vio_is_blocking( m->net.vio ) ){
+      return Qtrue;
+    }else{
+      return Qfalse;
+    }
+}
+
+/* socket_retry */
+static VALUE socket_retry( VALUE obj )
+{
+    MYSQL* m = GetHandler(obj);
+
+    if( vio_should_retry( m->net.vio ) ){
+      return Qtrue;
+    }else{
+      return Qfalse;
+    }
+}
+
+/* socket_interrupted */
+static VALUE socket_interrupted( VALUE obj )
+{
+    MYSQL* m = GetHandler(obj);
+
+    if( vio_was_interrupted( m->net.vio ) ){
+      return Qtrue;
+    }else{
+      return Qfalse;
+    }
+}
+
+/* socket_ready(timeout=nil) */
+static VALUE socket_ready( int argc, VALUE* argv, VALUE obj )
+{
+    MYSQL* m = GetHandler(obj);
+
+    VALUE timeout;  
+
+    rb_scan_args(argc, argv, "01", &timeout);
+
+    if ( NIL_P( timeout ) ){
+      timeout = m->net.read_timeout;
+    }
+
+    if( vio_poll_read( m->net.vio, INT2NUM(timeout) ) == 0 ){
+      return Qtrue;
+    }else{
+      return Qfalse;
+    }
 }
 
 /* send_query */
@@ -761,6 +834,7 @@ static VALUE send_query(VALUE obj, VALUE sql)
 {
     MYSQL* m = GetHandler(obj);
     Check_Type(sql, T_STRING);
+
     if (GetMysqlStruct(obj)->connection == Qfalse) {
         rb_raise(eMysql, "query: not connected");
     }
@@ -2017,6 +2091,12 @@ void Init_mysql(void)
 #endif
     rb_define_method(cMysql, "query", query, 1);
     rb_define_method(cMysql, "real_query", query, 1);
+    rb_define_method(cMysql, "socket_nonblocking", socket_nonblocking, 0);
+    rb_define_method(cMysql, "socket_blocking", socket_blocking, 0);
+    rb_define_method(cMysql, "socket_blocking?", blocking, 0);
+    rb_define_method(cMysql, "socket_ready?", socket_ready, -1);
+    rb_define_method(cMysql, "socket_interrupted?", socket_interrupted, 0);
+    rb_define_method(cMysql, "socket_retry?", socket_retry, 0);
     rb_define_method(cMysql, "async_query", async_query, -1);
     rb_define_method(cMysql, "send_query", send_query, 1);
     rb_define_method(cMysql, "get_result", get_result, 0);
